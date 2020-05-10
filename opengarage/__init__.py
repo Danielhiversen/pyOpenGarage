@@ -41,7 +41,7 @@ class OpenGarage:
 
     async def push_button(self):
         """Push button."""
-        result = await self._execute(f"cc?dkey={self._device_key}&click=1")
+        result = await self._execute(f"cc?dkey={self._devkey}&click=1")
         if result is None:
             return None
         return result.get("result")
