@@ -69,6 +69,4 @@ class OpenGarage:
             _LOGGER.error("Timed out when connecting to Open garage device")
             raise
 
-        _LOGGER.error("     %s", result)
-
         return result
