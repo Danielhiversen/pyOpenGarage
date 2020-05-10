@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="open_garage",
-    packages=["tibber"],
+    packages=["opengarage"],
     install_requires=[
         "aiohttp>=3.0.6",
         "async_timeout>=1.4.0",
