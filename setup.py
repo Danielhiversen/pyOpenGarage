@@ -8,7 +8,7 @@ setup(
         "async_timeout>=1.4.0",
         "websockets>=6.0",
     ],
-    version="0.1.0",
+    version="0.1.1",
     description="A python3 library to communicate with Open Garage",
     python_requires=">=3.5.3",
     author="Daniel Hoyer Iversen",
