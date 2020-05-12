@@ -60,12 +60,12 @@ class OpenGarage:
             result = await resp.json()
         except aiohttp.ClientError as err:
             if retry > 0:
-                return await self._execute(url, retry - 1)
+                return await self._execute(command, retry - 1)
             _LOGGER.error("Error connecting to Open garage: %s ", err, exc_info=True)
             raise
         except asyncio.TimeoutError:
             if retry > 0:
-                return await self._execute(url, retry - 1)
+                return await self._execute(command, retry - 1)
             _LOGGER.error("Timed out when connecting to Open garage device")
             raise
 
