@@ -57,7 +57,7 @@ class OpenGarage:
                     "Error connecting to Open garage, resp code: %s", resp.status
                 )
                 return None
-            result = await resp.json()
+            result = await resp.json(content_type=None)
         except aiohttp.ClientError as err:
             if retry > 0:
                 return await self._execute(command, retry - 1)
