@@ -45,6 +45,20 @@ class OpenGarage:
         if result is None:
             return None
         return result.get("result")
+    
+    async def reboot(self):
+        """Reboot device."""
+        result = await self._execute(f"cc?dkey={self._devkey}&reboot=1")
+        if result is None:
+            return None
+        return result.get("result")
+    
+    async def ap_mode(self):
+        """Reset device in AP mode (to reconfigure WiFi settings)."""
+        result = await self._execute(f"cc?dkey={self._devkey}&apmode=1")
+        if result is None:
+            return None
+        return result.get("result")
 
     async def _execute(self, command, retry=2):
         """Execute command."""
