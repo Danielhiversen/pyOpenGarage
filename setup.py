@@ -10,7 +10,7 @@ setup(
     version="0.1.5",
     description="A python3 library to communicate with Open Garage",
     python_requires=">=3.5.3",
-    author="Daniel Hoyer Iversen",
+    author="Daniel Hoyer",
     author_email="mail@dahoiv.net",
     url="https://github.com/Danielhiversen/pyOpenGarage",
     license="MIT",
