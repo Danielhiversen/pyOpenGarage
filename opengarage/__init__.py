@@ -13,6 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 class OpenGarage:
     """Class to communicate with the Open Garage api."""
 
+    # pylint: disable=too-many-arguments
     def __init__(
         self,
         devip,
@@ -38,6 +39,7 @@ class OpenGarage:
 
     @property
     def device_url(self):
+        """Device url."""
         return self._devip
 
     async def close_connection(self):
