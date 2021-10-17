@@ -31,6 +31,10 @@ class OpenGarage:
         self._devkey = devkey
         self._verify_ssl = verify_ssl
 
+    @property
+    def device_url(self):
+        return self._devip
+
     async def close_connection(self):
         """Close the connection."""
         await self.websession.close()
