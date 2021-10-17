@@ -14,7 +14,12 @@ class OpenGarage:
     """Class to communicate with the Open Garage api."""
 
     def __init__(
-        self, devip, devkey, verify_ssl=False, websession=None, timeout=DEFAULT_TIMEOUT,
+        self,
+        devip,
+        devkey,
+        verify_ssl=False,
+        websession=None,
+        timeout=DEFAULT_TIMEOUT,
     ):
         """Initialize the Open Garage connection."""
         if websession is None:
@@ -49,14 +54,14 @@ class OpenGarage:
         if result is None:
             return None
         return result.get("result")
-    
+
     async def reboot(self):
         """Reboot device."""
         result = await self._execute(f"cc?dkey={self._devkey}&reboot=1")
         if result is None:
             return None
         return result.get("result")
-    
+
     async def ap_mode(self):
         """Reset device in AP mode (to reconfigure WiFi settings)."""
         result = await self._execute(f"cc?dkey={self._devkey}&apmode=1")
