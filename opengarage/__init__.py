@@ -75,7 +75,7 @@ class OpenGarage:
         """Execute command."""
         url = f"{self._devip}/{command}"
         try:
-            with async_timeout.timeout(self._timeout):
+            async with async_timeout.timeout(self._timeout):
                 resp = await self.websession.get(url, verify_ssl=self._verify_ssl)
             if resp.status != 200:
                 _LOGGER.error(
