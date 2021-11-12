@@ -3,10 +3,7 @@ from setuptools import setup
 setup(
     name="open_garage",
     packages=["opengarage"],
-    install_requires=[
-        "aiohttp>=3.0.6",
-        "async_timeout>=3.0.0"
-    ],
+    install_requires=["aiohttp>=3.0.6", "async_timeout>=3.0.0"],
     version="0.1.6",
     description="A python3 library to communicate with Open Garage",
     python_requires=">=3.5.3",
