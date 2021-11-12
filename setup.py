@@ -4,7 +4,7 @@ setup(
     name="open_garage",
     packages=["opengarage"],
     install_requires=["aiohttp>=3.0.6", "async_timeout>=3.0.0"],
-    version="0.1.6",
+    version="0.2.0",
     description="A python3 library to communicate with Open Garage",
     python_requires=">=3.5.3",
     author="Daniel Hjelseth Høyer",
