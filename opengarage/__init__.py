@@ -57,6 +57,20 @@ class OpenGarage:
             return None
         return result.get("result")
 
+    async def push_close_button(self):
+        """Push close button.  No-op if already closed."""
+        result = await self._execute(f"cc?dkey={self._devkey}&close=1")
+        if result is None:
+            return None
+        return result.get("result")
+
+    async def push_open_button(self):
+        """Push open button.  No-op if already open."""
+        result = await self._execute(f"cc?dkey={self._devkey}&open=1")
+        if result is None:
+            return None
+        return result.get("result")
+
     async def reboot(self):
         """Reboot device."""
         result = await self._execute(f"cc?dkey={self._devkey}&reboot=1")
