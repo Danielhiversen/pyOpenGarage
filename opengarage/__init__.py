@@ -1,9 +1,14 @@
 """Open garage"""
+
 import asyncio
 import logging
 
 import aiohttp
 import async_timeout
+
+from opengarage.dispatcher import CommandDispatcher
+from opengarage.errors import ResponseError, TransportError, UnsupportedFeatureError
+from opengarage.state import normalize_state
 
 DEFAULT_TIMEOUT = 10
 
@@ -47,67 +52,92 @@ class OpenGarage:
         await self.websession.close()
 
     async def update_state(self):
-        """Update state."""
+        """Update state (raw jc payload)."""
         return await self._execute("jc")
+
+    async def get_state(self):
+        """Get normalized state plus raw payload."""
+        raw = await self._execute("jc", wrap_errors=True)
+        return normalize_state(raw)
+
+    async def get_capabilities(self):
+        """Return capability flags from normalized state."""
+        state = await self.get_state()
+        return dict(state.capabilities)
 
     async def push_button(self):
         """Push button."""
-        result = await self._execute("cc", {"dkey": self._devkey, "click": 1})
-        if result is None:
-            return None
-        return result.get("result")
+        return await self._dispatch_action("click")
 
     async def push_close_button(self):
         """Push close button.  No-op if already closed."""
-        result = await self._execute("cc", {"dkey": self._devkey, "close": 1})
-        if result is None:
-            return None
-        return result.get("result")
+        return await self._dispatch_action("close")
 
     async def push_open_button(self):
         """Push open button.  No-op if already open."""
-        result = await self._execute("cc", {"dkey": self._devkey, "open": 1})
-        if result is None:
-            return None
-        return result.get("result")
+        return await self._dispatch_action("open")
 
     async def reboot(self):
         """Reboot device."""
-        result = await self._execute("cc", {"dkey": self._devkey, "reboot": 1})
-        if result is None:
-            return None
-        return result.get("result")
+        return await self._dispatch_action("reboot")
 
     async def ap_mode(self):
         """Reset device in AP mode (to reconfigure WiFi settings)."""
-        result = await self._execute("cc", {"dkey": self._devkey, "apmode": 1})
+        return await self._dispatch_action("apmode")
+
+    async def toggle_light(self):
+        """Toggle light when supported by firmware."""
+        state = await self.get_state()
+        if not state.capabilities.get("light_control"):
+            raise UnsupportedFeatureError("Light control not supported")
+        return await self._dispatch_action("light", wrap_errors=True)
+
+    async def toggle_lock(self):
+        """Toggle lock when supported by firmware."""
+        state = await self.get_state()
+        if not state.capabilities.get("lock_control"):
+            raise UnsupportedFeatureError("Lock control not supported")
+        return await self._dispatch_action("lock", wrap_errors=True)
+
+    async def _dispatch_action(self, action, wrap_errors=False):
+        command = CommandDispatcher.build_command(action, self._devkey)
+        result = await self._execute(command, wrap_errors=wrap_errors)
         if result is None:
             return None
         return result.get("result")
 
-    async def _execute(self, command, params=None, retry=2):
+    async def _execute(self, command, retry=2, wrap_errors=False):
         """Execute command."""
-        url = f"{self._devip}/{command}"
+        url = "%s/%s" % (self._devip, command)
         try:
             async with async_timeout.timeout(self._timeout):
-                resp = await self.websession.get(
-                    url, params=params, verify_ssl=self._verify_ssl
-                )
+            resp = await self.websession.get(url, verify_ssl=self._verify_ssl)
             if resp.status != 200:
                 _LOGGER.error(
                     "Error connecting to Open garage, resp code: %s", resp.status
                 )
+                if wrap_errors:
+                    raise ResponseError(resp.status, url)
                 return None
-            result = await resp.json(content_type=None)
+            try:
+                result = await resp.json(content_type=None)
+            except ValueError:
+                # Malformed JSON; preserve raw payload for diagnostics
+                text = await resp.text()
+                result = {"_error": "invalid_json", "_raw": text}
         except aiohttp.ClientError as err:
             if retry > 0:
-                return await self._execute(command, params, retry - 1)
+                return await self._execute(command, retry - 1, wrap_errors=wrap_errors)
             _LOGGER.error("Error connecting to Open garage: %s ", err, exc_info=True)
+            if wrap_errors:
+                raise TransportError(str(err))
             raise
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as err:
             if retry > 0:
-                return await self._execute(command, params, retry - 1)
+                return await self._execute(command, retry - 1, wrap_errors=wrap_errors)
             _LOGGER.error("Timed out when connecting to Open garage device")
+            if wrap_errors:
+                raise TransportError(str(err))
             raise
 
         return result
