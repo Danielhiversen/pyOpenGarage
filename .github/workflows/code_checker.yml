@@ -43,4 +43,4 @@ jobs:
             pylint opengarage
       - name: Pytest
         run: |
-            pytest -v --cov
+            pytest -v
