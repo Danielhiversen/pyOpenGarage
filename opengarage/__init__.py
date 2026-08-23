@@ -1,6 +1,8 @@
 """Open garage"""
+
 import asyncio
 import logging
+from urllib.parse import urlencode
 
 import aiohttp
 import async_timeout
@@ -84,6 +86,23 @@ class OpenGarage:
         if result is None:
             return None
         return result.get("result")
+
+    async def toggle_light(self):
+        """Toggle the opener light."""
+        query = urlencode({"dkey": self._devkey, "light": "toggle"})
+        result = await self._execute(f"cc?{query}")
+        if result is None:
+            return None
+        return result.get("result")
+
+    async def set_light(self, turn_on):
+        """Set the opener light without toggling an already-correct state."""
+        state = await self.update_state()
+        if state is None or "light" not in state:
+            return None
+        if bool(state["light"]) is bool(turn_on):
+            return 1
+        return await self.toggle_light()
 
     async def _execute(self, command, retry=2):
         """Execute command."""
