@@ -1,3 +1,5 @@
+"""Normalization of raw OpenGarage device state payloads."""
+
 DOOR_STATE_MAP = {
     0: "closed",
     1: "open",
@@ -25,7 +27,10 @@ def _coerce_bool(value):
         return None
 
 
-class NormalizedState:
+class NormalizedState:  # pylint: disable=too-few-public-methods
+    """Normalized, capability-aware view of a raw OpenGarage state payload."""
+
+    # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-instance-attributes
     def __init__(
         self,
         door_state,
@@ -59,6 +64,7 @@ class NormalizedState:
         }
 
     def to_dict(self):
+        """Return a plain-dict representation of this state."""
         return {
             "door_state": self.door_state,
             "door_value": self.door_value,
@@ -75,6 +81,7 @@ class NormalizedState:
 
 
 def normalize_state(payload):
+    """Normalize a raw OpenGarage device payload into a `NormalizedState`."""
     if not isinstance(payload, dict):
         return NormalizedState("unknown", None, raw={"_raw": payload})
 

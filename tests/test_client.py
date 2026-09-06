@@ -4,7 +4,8 @@ import unittest
 import aiohttp
 
 from opengarage import OpenGarage
-from opengarage.errors import ResponseError, TransportError, UnsupportedFeatureError
+from opengarage.errors import (ResponseError, TransportError,
+                               UnsupportedFeatureError)
 
 
 class FakeResponse:

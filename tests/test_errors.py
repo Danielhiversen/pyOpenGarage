@@ -1,11 +1,7 @@
 import unittest
 
-from opengarage.errors import (
-    OpenGarageError,
-    ResponseError,
-    TransportError,
-    UnsupportedFeatureError,
-)
+from opengarage.errors import (OpenGarageError, ResponseError, TransportError,
+                               UnsupportedFeatureError)
 
 
 class TestErrors(unittest.TestCase):

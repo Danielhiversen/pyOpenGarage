@@ -7,7 +7,8 @@ import aiohttp
 import async_timeout
 
 from opengarage.dispatcher import CommandDispatcher
-from opengarage.errors import ResponseError, TransportError, UnsupportedFeatureError
+from opengarage.errors import (ResponseError, TransportError,
+                               UnsupportedFeatureError)
 from opengarage.state import normalize_state
 
 DEFAULT_TIMEOUT = 10
@@ -109,7 +110,7 @@ class OpenGarage:
 
     async def _execute(self, command, retry=2, wrap_errors=False):
         """Execute command."""
-        url = "%s/%s" % (self._devip, command)
+        url = f"{self._devip}/{command}"
         try:
             async with async_timeout.timeout(self._timeout):
                 resp = await self.websession.get(url)
@@ -131,14 +132,14 @@ class OpenGarage:
                 return await self._execute(command, retry - 1, wrap_errors=wrap_errors)
             _LOGGER.error("Error connecting to Open garage: %s ", err, exc_info=True)
             if wrap_errors:
-                raise TransportError(str(err))
+                raise TransportError(str(err)) from err
             raise
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as err:
             if retry > 0:
                 return await self._execute(command, retry - 1, wrap_errors=wrap_errors)
             _LOGGER.error("Timed out when connecting to Open garage device")
             if wrap_errors:
-                raise TransportError('Timed out when connecting to %s' % url)
+                raise TransportError(f"Timed out when connecting to {url}") from err
             raise
 
         return result

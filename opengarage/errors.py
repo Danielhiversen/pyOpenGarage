@@ -1,3 +1,6 @@
+"""Exception types raised by the OpenGarage client."""
+
+
 class OpenGarageError(Exception):
     """Base error for OpenGarage client failures."""
 
@@ -15,7 +18,7 @@ class ResponseError(OpenGarageError):
         self.url = url
 
     def __str__(self):
-        return "OpenGarage response error: %s for %s" % (self.status, self.url)
+        return f"OpenGarage response error: {self.status} for {self.url}"
 
 
 class UnsupportedFeatureError(OpenGarageError):
