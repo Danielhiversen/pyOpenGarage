@@ -28,7 +28,7 @@ jobs:
         with:
           path: ~/.cache/pip
           key: pip_cache
-      - name: Install depencency
+      - name: Install dependency
         run: |
             pip install aiohttp async_timeout
             pip install dlint flake8 flake8-bandit flake8-bugbear flake8-deprecated flake8-executable isort pylint pytest pytest-asyncio pytest-cov
