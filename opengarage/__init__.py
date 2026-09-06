@@ -133,12 +133,12 @@ class OpenGarage:
             if wrap_errors:
                 raise TransportError(str(err))
             raise
-        except asyncio.TimeoutError as err:
+        except asyncio.TimeoutError:
             if retry > 0:
                 return await self._execute(command, retry - 1, wrap_errors=wrap_errors)
             _LOGGER.error("Timed out when connecting to Open garage device")
             if wrap_errors:
-                raise TransportError(str(err))
+                raise TransportError('Timed out when connecting to %s' % url)
             raise
 
         return result
