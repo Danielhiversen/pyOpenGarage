@@ -34,7 +34,7 @@ def test_init_creates_session_when_missing(monkeypatch):
     loop = asyncio.new_event_loop()
     session = object()
     monkeypatch.setattr(asyncio, "get_event_loop", lambda: loop)
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda: session)
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda connector=None: session)
     try:
         client = OpenGarage("http://device", "devkey")
         assert client.websession is session
@@ -124,7 +124,7 @@ async def test_execute_success_returns_json():
     result = await client._execute("jc")
 
     assert result == {"ok": True}
-    session.get.assert_awaited_once_with("http://device/jc", verify_ssl=False)
+    session.get.assert_awaited_once_with("http://device/jc")
     assert response.json_calls == [None]
 
 

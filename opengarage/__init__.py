@@ -31,7 +31,8 @@ class OpenGarage:
         if websession is None:
 
             async def _create_session():
-                return aiohttp.ClientSession()
+                connector = aiohttp.TCPConnector(ssl=verify_ssl)
+                return aiohttp.ClientSession(connector=connector)
 
             loop = asyncio.get_event_loop()
             self.websession = loop.run_until_complete(_create_session())
@@ -111,7 +112,7 @@ class OpenGarage:
         url = "%s/%s" % (self._devip, command)
         try:
             async with async_timeout.timeout(self._timeout):
-            resp = await self.websession.get(url, verify_ssl=self._verify_ssl)
+                resp = await self.websession.get(url)
             if resp.status != 200:
                 _LOGGER.error(
                     "Error connecting to Open garage, resp code: %s", resp.status

@@ -26,7 +26,7 @@ class FakeSession:
     def __init__(self, responses):
         self._responses = list(responses)
 
-    async def get(self, url, verify_ssl=False):
+    async def get(self, url):
         response = self._responses.pop(0)
         if isinstance(response, Exception):
             raise response

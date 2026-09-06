@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name="open_garage",
     packages=["opengarage"],
-    install_requires=["aiohttp>=3.0.6", "async_timeout>=3.0.0"],
+    install_requires=["aiohttp>=3.14.3", "async_timeout>=5.0.1"],
     extras_require={
         "dev": [
             "dlint>=0.16.0",
