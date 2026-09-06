@@ -10,9 +10,12 @@ class ResponseError(OpenGarageError):
     """HTTP response errors with status context."""
 
     def __init__(self, status, url):
-        super().__init__("OpenGarage response error: %s for %s" % (status, url))
+        super().__init__(status, url)
         self.status = status
         self.url = url
+
+    def __str__(self):
+        return "OpenGarage response error: %s for %s" % (self.status, self.url)
 
 
 class UnsupportedFeatureError(OpenGarageError):

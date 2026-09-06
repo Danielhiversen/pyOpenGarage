@@ -30,8 +30,7 @@ jobs:
           key: pip_cache
       - name: Install dependency
         run: |
-            pip install aiohttp async_timeout
-            pip install dlint flake8 flake8-bandit flake8-bugbear flake8-deprecated flake8-executable isort pylint pytest pytest-asyncio pytest-cov
+            pip install '.[dev]'
       - name: Flake8 Code Linter
         run: |
             flake8 opengarage/ --max-line-length=120 --extend-ignore=DUO102,DUO130,S303,S311
