@@ -3,9 +3,10 @@
 DOOR_STATE_MAP = {
     0: "closed",
     1: "open",
-    2: "opening",
+    2: "stopped",
     3: "closing",
-    4: "stopped",
+    4: "opening",
+    5: "unknown",
 }
 
 

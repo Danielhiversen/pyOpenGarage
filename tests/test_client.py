@@ -26,8 +26,10 @@ class FakeResponse:
 class FakeSession:
     def __init__(self, responses):
         self._responses = list(responses)
+        self.requested_urls = []
 
     async def get(self, url):
+        self.requested_urls.append(url)
         response = self._responses.pop(0)
         if isinstance(response, Exception):
             raise response
@@ -73,6 +75,7 @@ class TestOpenGarageClient(unittest.TestCase):
         client = OpenGarage("http://device", "key", websession=session)
         result = asyncio.run(client.toggle_light())
         self.assertEqual(result, "success")
+        self.assertTrue(session.requested_urls[-1].endswith("light=toggle"))
 
     def test_get_capabilities(self):
         session = FakeSession([FakeResponse(200, {"door": 1, "lock": 1})])
@@ -97,6 +100,7 @@ class TestOpenGarageClient(unittest.TestCase):
         client = OpenGarage("http://device", "key", websession=session)
         result = asyncio.run(client.toggle_lock())
         self.assertEqual(result, "success")
+        self.assertTrue(session.requested_urls[-1].endswith("lock=toggle"))
 
     def test_execute_handles_invalid_json_payload(self):
         session = FakeSession(

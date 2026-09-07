@@ -15,7 +15,7 @@ class TestStateNormalizer(unittest.TestCase):
 
         payload = {"door": 2}
         state = normalize_state(payload)
-        self.assertEqual(state.door_state, "opening")
+        self.assertEqual(state.door_state, "stopped")
 
         payload = {"door": 3}
         state = normalize_state(payload)
@@ -23,7 +23,11 @@ class TestStateNormalizer(unittest.TestCase):
 
         payload = {"door": 4}
         state = normalize_state(payload)
-        self.assertEqual(state.door_state, "stopped")
+        self.assertEqual(state.door_state, "opening")
+
+        payload = {"door": 5}
+        state = normalize_state(payload)
+        self.assertEqual(state.door_state, "unknown")
 
     def test_unknown_door_state(self):
         payload = {"door": 99}

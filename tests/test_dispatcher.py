@@ -8,6 +8,14 @@ class TestCommandDispatcher(unittest.TestCase):
         command = CommandDispatcher.build_command("open", "abc123")
         self.assertEqual(command, "cc?dkey=abc123&open=1")
 
+    def test_build_command_light_uses_toggle(self):
+        command = CommandDispatcher.build_command("light", "abc123")
+        self.assertEqual(command, "cc?dkey=abc123&light=toggle")
+
+    def test_build_command_lock_uses_toggle(self):
+        command = CommandDispatcher.build_command("lock", "abc123")
+        self.assertEqual(command, "cc?dkey=abc123&lock=toggle")
+
     def test_invalid_action_raises(self):
         with self.assertRaises(ValueError):
             CommandDispatcher.build_command("invalid", "abc123")
