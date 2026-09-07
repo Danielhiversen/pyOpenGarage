@@ -102,6 +102,56 @@ class TestOpenGarageClient(unittest.TestCase):
         self.assertEqual(result, "success")
         self.assertTrue(session.requested_urls[-1].endswith("lock=toggle"))
 
+    def test_set_light_unsupported(self):
+        session = FakeSession([FakeResponse(200, {"door": 1})])
+        client = OpenGarage("http://device", "key", websession=session)
+        with self.assertRaises(UnsupportedFeatureError):
+            asyncio.run(client.set_light(True))
+
+    def test_set_light_noop_when_already_desired_state(self):
+        session = FakeSession([FakeResponse(200, {"door": 1, "light": 1})])
+        client = OpenGarage("http://device", "key", websession=session)
+        result = asyncio.run(client.set_light(True))
+        self.assertIsNone(result)
+        self.assertEqual(len(session.requested_urls), 1)
+
+    def test_set_light_toggles_when_state_differs(self):
+        session = FakeSession(
+            [
+                FakeResponse(200, {"door": 1, "light": 0}),
+                FakeResponse(200, {"result": "success"}),
+            ]
+        )
+        client = OpenGarage("http://device", "key", websession=session)
+        result = asyncio.run(client.set_light(True))
+        self.assertEqual(result, "success")
+        self.assertTrue(session.requested_urls[-1].endswith("light=toggle"))
+
+    def test_set_lock_unsupported(self):
+        session = FakeSession([FakeResponse(200, {"door": 1})])
+        client = OpenGarage("http://device", "key", websession=session)
+        with self.assertRaises(UnsupportedFeatureError):
+            asyncio.run(client.set_lock(True))
+
+    def test_set_lock_noop_when_already_desired_state(self):
+        session = FakeSession([FakeResponse(200, {"door": 1, "lock": 0})])
+        client = OpenGarage("http://device", "key", websession=session)
+        result = asyncio.run(client.set_lock(False))
+        self.assertIsNone(result)
+        self.assertEqual(len(session.requested_urls), 1)
+
+    def test_set_lock_toggles_when_state_differs(self):
+        session = FakeSession(
+            [
+                FakeResponse(200, {"door": 1, "lock": 0}),
+                FakeResponse(200, {"result": "success"}),
+            ]
+        )
+        client = OpenGarage("http://device", "key", websession=session)
+        result = asyncio.run(client.set_lock(True))
+        self.assertEqual(result, "success")
+        self.assertTrue(session.requested_urls[-1].endswith("lock=toggle"))
+
     def test_execute_handles_invalid_json_payload(self):
         session = FakeSession(
             [FakeResponse(200, ValueError("bad-json"), text="not-json")]

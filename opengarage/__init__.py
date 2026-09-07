@@ -106,6 +106,24 @@ class OpenGarage:
             raise UnsupportedFeatureError("Lock control not supported")
         return await self._dispatch_action("lock", wrap_errors=True)
 
+    async def set_light(self, on):
+        """Set light to on/off, only toggling if it isn't already in that state."""
+        state = await self.get_state()
+        if not state.capabilities.get("light_control"):
+            raise UnsupportedFeatureError("Light control not supported")
+        if state.light_on == on:
+            return None
+        return await self._dispatch_action("light", wrap_errors=True)
+
+    async def set_lock(self, engaged):
+        """Set lock to engaged/disengaged, only toggling if it isn't already in that state."""
+        state = await self.get_state()
+        if not state.capabilities.get("lock_control"):
+            raise UnsupportedFeatureError("Lock control not supported")
+        if state.lock_engaged == engaged:
+            return None
+        return await self._dispatch_action("lock", wrap_errors=True)
+
     async def _dispatch_action(self, action, wrap_errors=False):
         command = CommandDispatcher.build_command(action, self._devkey)
         result = await self._execute(command, wrap_errors=wrap_errors)
