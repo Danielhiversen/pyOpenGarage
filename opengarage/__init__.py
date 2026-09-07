@@ -29,16 +29,7 @@ class OpenGarage:
         timeout=DEFAULT_TIMEOUT,
     ):
         """Initialize the Open Garage connection."""
-        if websession is None:
-
-            async def _create_session():
-                connector = aiohttp.TCPConnector(ssl=verify_ssl)
-                return aiohttp.ClientSession(connector=connector)
-
-            loop = asyncio.get_event_loop()
-            self.websession = loop.run_until_complete(_create_session())
-        else:
-            self.websession = websession
+        self.websession = websession
         self._timeout = timeout
         self._devip = devip
         self._devkey = devkey
@@ -48,6 +39,12 @@ class OpenGarage:
     def device_url(self):
         """Device url."""
         return self._devip
+
+    async def _ensure_session(self):
+        """Create the websession on first use if one wasn't provided."""
+        if self.websession is None:
+            connector = aiohttp.TCPConnector(ssl=self._verify_ssl)
+            self.websession = aiohttp.ClientSession(connector=connector)
 
     async def close_connection(self):
         """Close the connection."""
@@ -110,6 +107,7 @@ class OpenGarage:
 
     async def _execute(self, command, retry=2, wrap_errors=False):
         """Execute command."""
+        await self._ensure_session()
         url = f"{self._devip}/{command}"
         try:
             async with async_timeout.timeout(self._timeout):

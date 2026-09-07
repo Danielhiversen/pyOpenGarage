@@ -30,16 +30,20 @@ def test_init_uses_provided_session():
     assert client.websession is session
 
 
-def test_init_creates_session_when_missing(monkeypatch):
-    loop = asyncio.new_event_loop()
+def test_init_does_not_create_session_eagerly():
+    client = OpenGarage("http://device", "devkey")
+    assert client.websession is None
+
+
+@pytest.mark.asyncio
+async def test_ensure_session_creates_session_lazily(monkeypatch):
     session = object()
-    monkeypatch.setattr(asyncio, "get_event_loop", lambda: loop)
     monkeypatch.setattr(aiohttp, "ClientSession", lambda connector=None: session)
-    try:
-        client = OpenGarage("http://device", "devkey")
-        assert client.websession is session
-    finally:
-        loop.close()
+    client = OpenGarage("http://device", "devkey")
+
+    await client._ensure_session()
+
+    assert client.websession is session
 
 
 def test_device_url_returns_devip():
