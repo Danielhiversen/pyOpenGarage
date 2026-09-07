@@ -4,6 +4,9 @@ setup(
     name="open_garage",
     packages=["opengarage"],
     install_requires=["aiohttp>=3.14.3", "async_timeout>=5.0.1"],
+    entry_points={
+        "console_scripts": ["opengarage=opengarage.cli:main"],
+    },
     extras_require={
         "dev": [
             "dlint>=0.16.0",
