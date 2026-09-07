@@ -51,6 +51,26 @@ def test_device_url_returns_devip():
     assert client.device_url == "http://device"
 
 
+def test_device_url_adds_scheme_for_bare_host():
+    client = OpenGarage("192.168.1.5:80", "devkey", websession=SimpleNamespace())
+    assert client.device_url == "http://192.168.1.5:80"
+
+
+def test_device_url_adds_scheme_for_bare_host_without_port():
+    client = OpenGarage("192.168.1.5", "devkey", websession=SimpleNamespace())
+    assert client.device_url == "http://192.168.1.5"
+
+
+def test_device_url_preserves_https_scheme():
+    client = OpenGarage("https://device", "devkey", websession=SimpleNamespace())
+    assert client.device_url == "https://device"
+
+
+def test_device_url_strips_trailing_slash():
+    client = OpenGarage("http://device/", "devkey", websession=SimpleNamespace())
+    assert client.device_url == "http://device"
+
+
 @pytest.mark.asyncio
 async def test_close_connection_closes_session():
     session = SimpleNamespace(close=AsyncMock())

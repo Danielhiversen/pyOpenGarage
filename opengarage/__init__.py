@@ -31,9 +31,17 @@ class OpenGarage:
         """Initialize the Open Garage connection."""
         self.websession = websession
         self._timeout = timeout
-        self._devip = devip
+        self._devip = self._normalize_devip(devip)
         self._devkey = devkey
         self._verify_ssl = verify_ssl
+
+    @staticmethod
+    def _normalize_devip(devip):
+        """Accept a bare host/IP or a full http(s) URL, defaulting to http://."""
+        devip = devip.rstrip("/")
+        if not devip.startswith(("http://", "https://")):
+            devip = f"http://{devip}"
+        return devip
 
     @property
     def device_url(self):
