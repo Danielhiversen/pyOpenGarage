@@ -1,5 +1,7 @@
 """Command construction helpers for the OpenGarage device API."""
 
+from urllib.parse import quote
+
 
 class CommandDispatcher:  # pylint: disable=too-few-public-methods
     """Centralized cc command construction."""
@@ -21,4 +23,4 @@ class CommandDispatcher:  # pylint: disable=too-few-public-methods
         """Build the `cc` query string for the given action."""
         if action not in cls._ACTION_VALUES:
             raise ValueError(f"Unsupported action: {action}")
-        return f"cc?dkey={devkey}&{action}={cls._ACTION_VALUES[action]}"
+        return f"cc?dkey={quote(devkey, safe='')}&{action}={cls._ACTION_VALUES[action]}"

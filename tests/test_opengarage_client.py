@@ -14,10 +14,19 @@ class ResponseStub:
         self.status = status
         self._payload = payload
         self.json_calls = []
+        self.released = False
 
     async def json(self, content_type=None):
         self.json_calls.append(content_type)
         return self._payload
+
+    async def release(self):
+        self.released = True
+
+
+class SyncReleaseResponse(ResponseStub):
+    def release(self):
+        self.released = True
 
 
 def make_client(session):
@@ -79,6 +88,13 @@ async def test_close_connection_closes_session():
     await client.close_connection()
 
     session.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_connection_noop_when_no_session_created():
+    client = OpenGarage("http://device", "devkey")
+
+    await client.close_connection()  # should not raise AttributeError
 
 
 @pytest.mark.asyncio
@@ -150,6 +166,19 @@ async def test_execute_success_returns_json():
     assert result == {"ok": True}
     session.get.assert_awaited_once_with("http://device/jc")
     assert response.json_calls == [None]
+    assert response.released is True
+
+
+@pytest.mark.asyncio
+async def test_execute_releases_sync_response():
+    response = SyncReleaseResponse(200, {"ok": True})
+    session = SimpleNamespace(get=AsyncMock(return_value=response))
+    client = make_client(session)
+
+    result = await client._execute("jc")
+
+    assert result == {"ok": True}
+    assert response.released is True
 
 
 @pytest.mark.asyncio
@@ -162,6 +191,7 @@ async def test_execute_non_200_returns_none_and_logs(caplog):
     result = await client._execute("jc")
 
     assert result is None
+    assert response.released is True
     assert any("resp code: 500" in record.message for record in caplog.records)
 
 

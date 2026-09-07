@@ -13,6 +13,7 @@ class FakeResponse:
         self.status = status
         self._payload = payload
         self._text = text or ""
+        self.released = False
 
     async def json(self, content_type=None):
         if isinstance(self._payload, Exception):
@@ -21,6 +22,9 @@ class FakeResponse:
 
     async def text(self):
         return self._text
+
+    async def release(self):
+        self.released = True
 
 
 class FakeSession:

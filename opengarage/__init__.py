@@ -1,6 +1,7 @@
 """Open garage"""
 
 import asyncio
+import inspect
 import logging
 
 import aiohttp
@@ -55,7 +56,9 @@ class OpenGarage:
             self.websession = aiohttp.ClientSession(connector=connector)
 
     async def close_connection(self):
-        """Close the connection."""
+        """Close the connection, if one was ever created."""
+        if self.websession is None:
+            return
         await self.websession.close()
 
     async def update_state(self):
@@ -135,6 +138,7 @@ class OpenGarage:
         """Execute command."""
         await self._ensure_session()
         url = f"{self._devip}/{command}"
+        resp = None
         try:
             async with async_timeout.timeout(self._timeout):
                 resp = await self.websession.get(url)
@@ -165,5 +169,12 @@ class OpenGarage:
             if wrap_errors:
                 raise TransportError(f"Timed out when connecting to {url}") from err
             raise
+        finally:
+            # Always release the response back to the connector pool, even on
+            # early returns/raises, to avoid leaking connections.
+            if resp is not None:
+                release_result = resp.release()
+                if inspect.isawaitable(release_result):
+                    await release_result
 
         return result
