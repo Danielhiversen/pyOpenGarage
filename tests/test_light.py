@@ -1,87 +1,121 @@
 """Tests for OpenGarage opener light control."""
 
 import asyncio
-import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import aiohttp
+import pytest
 
 from opengarage import OpenGarage
 
 
-class AsyncCallable:
-    """Minimal async callable test double compatible with Python 3.7."""
-
-    def __init__(self, return_value=None):
-        self.return_value = return_value
-        self.calls = []
-
-    async def __call__(self, *args, **kwargs):
-        """Record a call and return the configured value."""
-        self.calls.append((args, kwargs))
-        return self.return_value
+@pytest.fixture
+def client():
+    """Create a client without connecting to a device."""
+    return OpenGarage("http://device", "abc123&=?/", websession=object())
 
 
-class TestOpenGarageLight(unittest.TestCase):
-    """Test OpenGarage opener light methods."""
+@pytest.mark.parametrize(
+    "response,expected",
+    [({"result": 1}, 1), ({"result": 2}, 2), ({}, None), (None, None)],
+)
+async def test_toggle_light(client, response, expected):
+    """Encode the key, preserve result codes, and never retry a toggle."""
+    client._execute = AsyncMock(return_value=response)
 
-    def setUp(self):
-        """Create an OpenGarage client with a mocked session."""
-        self.client = OpenGarage(
-            "http://device",
-            "abc123&=?/",
-            websession=object(),
-        )
+    assert await client.toggle_light() == expected
 
-    def test_toggle_light_uses_firmware_toggle_value(self):
-        """Test the firmware receives its required light=toggle value."""
-        execute = AsyncCallable(return_value={"result": 1})
-        self.client._execute = execute
-
-        self.assertEqual(asyncio.run(self.client.toggle_light()), 1)
-
-        self.assertEqual(
-            execute.calls,
-            [(("cc?dkey=abc123%26%3D%3F%2F&light=toggle",), {})],
-        )
-
-    def test_set_light_is_idempotent(self):
-        """Test no toggle is sent when the light is already correct."""
-        for current, requested in ((0, False), (1, True)):
-            with self.subTest(current=current, requested=requested):
-                self.client.update_state = AsyncCallable(
-                    return_value={"light": current}
-                )
-                toggle = AsyncCallable()
-                self.client.toggle_light = toggle
-
-                self.assertEqual(asyncio.run(self.client.set_light(requested)), 1)
-
-                self.assertEqual(toggle.calls, [])
-
-    def test_set_light_toggles_when_state_differs(self):
-        """Test a toggle is sent when the requested state differs."""
-        for current, requested in ((0, True), (1, False)):
-            with self.subTest(current=current, requested=requested):
-                self.client.update_state = AsyncCallable(
-                    return_value={"light": current}
-                )
-                toggle = AsyncCallable(return_value=1)
-                self.client.toggle_light = toggle
-
-                self.assertEqual(asyncio.run(self.client.set_light(requested)), 1)
-
-                self.assertEqual(toggle.calls, [((), {})])
-
-    def test_set_light_returns_none_without_light_capability(self):
-        """Test devices without a light field are not controlled."""
-        for state in (None, {"door": 0}):
-            with self.subTest(state=state):
-                self.client.update_state = AsyncCallable(return_value=state)
-                toggle = AsyncCallable()
-                self.client.toggle_light = toggle
-
-                self.assertIsNone(asyncio.run(self.client.set_light(True)))
-
-                self.assertEqual(toggle.calls, [])
+    client._execute.assert_awaited_once_with(
+        "cc?dkey=abc123%26%3D%3F%2F&light=toggle", retry=0
+    )
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.mark.parametrize("current,requested", [(0, False), (1, True)])
+async def test_set_light_is_idempotent(client, current, requested):
+    """Do not toggle a light that already has the requested state."""
+    client._execute = AsyncMock(return_value={"light": current})
+
+    assert await client.set_light(requested) == 1
+
+    client._execute.assert_awaited_once_with("jc")
+
+
+@pytest.mark.parametrize("current,requested", [(0, True), (1, False)])
+@pytest.mark.parametrize(
+    "response,expected",
+    [({"result": 1}, 1), ({"result": 2}, 2), ({"result": 3}, 3), (None, None)],
+)
+async def test_set_light_when_state_differs(client, current, requested, response, expected):
+    """Read the state before toggling and preserve command failures."""
+    client._execute = AsyncMock(side_effect=[{"light": current}, response])
+
+    assert await client.set_light(requested) == expected
+
+    assert client._execute.await_count == 2
+    client._execute.assert_awaited_with(
+        "cc?dkey=abc123%26%3D%3F%2F&light=toggle", retry=0
+    )
+
+
+@pytest.mark.parametrize(
+    "state", [None, {"door": 0}, {"light": None}, {"light": -1}, {"light": "0"}]
+)
+async def test_set_light_without_valid_state(client, state):
+    """An absent or unknown light state must never trigger a toggle."""
+    client._execute = AsyncMock(return_value=state)
+
+    assert await client.set_light(True) is None
+
+    client._execute.assert_awaited_once_with("jc")
+
+
+@pytest.mark.parametrize("initial,requested", [(0, True), (1, False)])
+async def test_concurrent_set_light(client, initial, requested):
+    """Two same-state commands must not toggle twice from one snapshot."""
+    state = initial
+
+    async def read_state():
+        snapshot = {"light": state}
+        await asyncio.sleep(0)
+        return snapshot
+
+    async def execute(command, retry):
+        nonlocal state
+        state = 1 - state
+        await asyncio.sleep(0)
+        return {"result": 1}
+
+    client.update_state = AsyncMock(side_effect=read_state)
+    client._execute = AsyncMock(side_effect=execute)
+
+    results = await asyncio.gather(
+        client.set_light(requested), client.set_light(requested)
+    )
+
+    assert results == [1, 1]
+
+    assert state == int(requested)
+    assert client.update_state.await_count == 2
+    client._execute.assert_awaited_once()
+
+
+@pytest.mark.parametrize("error", [aiohttp.ClientError, asyncio.TimeoutError])
+async def test_toggle_does_not_retry_network_failure(client, error):
+    """An uncertain command outcome must not cause a second toggle."""
+    client.websession = SimpleNamespace(get=AsyncMock(side_effect=error))
+
+    with pytest.raises(error):
+        await client.toggle_light()
+
+    client.websession.get.assert_awaited_once()
+
+
+async def test_set_light_lock_released_after_error(client):
+    """A failed state read must not block subsequent commands."""
+    client._execute = AsyncMock(side_effect=[aiohttp.ClientError(), {"light": 1}])
+
+    with pytest.raises(aiohttp.ClientError):
+        await client.set_light(True)
+
+    assert await asyncio.wait_for(client.set_light(True), timeout=1) == 1

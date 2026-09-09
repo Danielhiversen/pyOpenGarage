@@ -38,6 +38,7 @@ class OpenGarage:
         self._devip = devip
         self._devkey = devkey
         self._verify_ssl = verify_ssl
+        self._light_lock = asyncio.Lock()
 
     @property
     def device_url(self):
@@ -89,20 +90,27 @@ class OpenGarage:
 
     async def toggle_light(self):
         """Toggle the opener light."""
+        async with self._light_lock:
+            return await self._toggle_light()
+
+    async def _toggle_light(self):
+        """Send one toggle without retrying an ambiguous response."""
         query = urlencode({"dkey": self._devkey, "light": "toggle"})
-        result = await self._execute(f"cc?{query}")
+        # A lost response may follow a successful toggle; retrying would undo it.
+        result = await self._execute(f"cc?{query}", retry=0)
         if result is None:
             return None
         return result.get("result")
 
     async def set_light(self, turn_on):
         """Set the opener light without toggling an already-correct state."""
-        state = await self.update_state()
-        if state is None or "light" not in state:
-            return None
-        if bool(state["light"]) is bool(turn_on):
-            return 1
-        return await self.toggle_light()
+        async with self._light_lock:
+            state = await self.update_state()
+            if state is None or state.get("light") not in (0, 1):
+                return None
+            if bool(state["light"]) is bool(turn_on):
+                return 1
+            return await self._toggle_light()
 
     async def _execute(self, command, retry=2):
         """Execute command."""
