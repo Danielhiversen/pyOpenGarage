@@ -14,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 class OpenGarage:
     """Class to communicate with the Open Garage api."""
 
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         devip,
