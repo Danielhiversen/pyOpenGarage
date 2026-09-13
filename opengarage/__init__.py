@@ -38,7 +38,7 @@ class OpenGarage:
         self._devip = devip
         self._devkey = devkey
         self._verify_ssl = verify_ssl
-        self._light_lock = asyncio.Lock()
+        self._light_lock = None
 
     @property
     def device_url(self):
@@ -90,8 +90,14 @@ class OpenGarage:
 
     async def toggle_light(self):
         """Toggle the opener light."""
-        async with self._light_lock:
+        async with self._get_light_lock():
             return await self._toggle_light()
+
+    def _get_light_lock(self):
+        """Create the shared lock inside the light command's running loop."""
+        if self._light_lock is None:
+            self._light_lock = asyncio.Lock()
+        return self._light_lock
 
     async def _toggle_light(self):
         """Send one toggle without retrying an ambiguous response."""
@@ -104,7 +110,7 @@ class OpenGarage:
 
     async def set_light(self, turn_on):
         """Set the opener light without toggling an already-correct state."""
-        async with self._light_lock:
+        async with self._get_light_lock():
             state = await self.update_state()
             if state is None or state.get("light") not in (0, 1):
                 return None

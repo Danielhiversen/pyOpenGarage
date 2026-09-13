@@ -1,6 +1,7 @@
 """Tests for OpenGarage opener light control."""
 
 import asyncio
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -119,3 +120,56 @@ async def test_set_light_lock_released_after_error(client):
         await client.set_light(True)
 
     assert await asyncio.wait_for(client.set_light(True), timeout=1) == 1
+
+
+@pytest.mark.parametrize(
+    "commands,expected_state,expected_toggles",
+    [
+        (("on", "on"), 1, 1),
+        (("off", "off"), 0, 0),
+        (("on", "off"), 0, 2),
+        (("off", "on"), 1, 1),
+        (("toggle", "on"), 1, 1),
+        (("on", "toggle"), 0, 2),
+        (("toggle", "toggle"), 0, 2),
+    ],
+)
+def test_light_commands_after_loop_start(commands, expected_state, expected_toggles):
+    """A client constructed before the running loop must serialize light calls."""
+    construction_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(construction_loop)
+    try:
+        connection = OpenGarage("http://device", "key", websession=object())
+    finally:
+        asyncio.set_event_loop(None)
+        construction_loop.close()
+
+    state = 0
+
+    async def read_state():
+        snapshot = {"light": state}
+        await asyncio.sleep(0)
+        return snapshot
+
+    async def execute(command, retry):
+        nonlocal state
+        state = 1 - state
+        await asyncio.sleep(0)
+        return {"result": 1}
+
+    connection.update_state = AsyncMock(side_effect=read_state)
+    connection._execute = AsyncMock(side_effect=execute)
+    actions = {
+        "on": partial(connection.set_light, True),
+        "off": partial(connection.set_light, False),
+        "toggle": connection.toggle_light,
+    }
+
+    async def run_commands():
+        return await asyncio.wait_for(
+            asyncio.gather(*(actions[command]() for command in commands)), timeout=1
+        )
+
+    assert asyncio.run(run_commands()) == [1, 1]
+    assert state == expected_state
+    assert connection._execute.await_count == expected_toggles
