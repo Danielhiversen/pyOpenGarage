@@ -22,13 +22,13 @@ def client():
     [({"result": 1}, 1), ({"result": 2}, 2), ({}, None), (None, None)],
 )
 async def test_toggle_light(client, response, expected):
-    """Encode the key, preserve result codes, and never retry a toggle."""
+    """Pass the key as a query parameter and never retry a toggle."""
     client._execute = AsyncMock(return_value=response)
 
     assert await client.toggle_light() == expected
 
     client._execute.assert_awaited_once_with(
-        "cc?dkey=abc123%26%3D%3F%2F&light=toggle", retry=0
+        "cc", {"dkey": "abc123&=?/", "light": "toggle"}, retry=0
     )
 
 
@@ -55,7 +55,7 @@ async def test_set_light_when_state_differs(client, current, requested, response
 
     assert client._execute.await_count == 2
     client._execute.assert_awaited_with(
-        "cc?dkey=abc123%26%3D%3F%2F&light=toggle", retry=0
+        "cc", {"dkey": "abc123&=?/", "light": "toggle"}, retry=0
     )
 
 
@@ -81,7 +81,7 @@ async def test_concurrent_set_light(client, initial, requested):
         await asyncio.sleep(0)
         return snapshot
 
-    async def execute(command, retry):
+    async def execute(command, params, retry):
         nonlocal state
         state = 1 - state
         await asyncio.sleep(0)
@@ -109,7 +109,11 @@ async def test_toggle_does_not_retry_network_failure(client, error):
     with pytest.raises(error):
         await client.toggle_light()
 
-    client.websession.get.assert_awaited_once()
+    client.websession.get.assert_awaited_once_with(
+        "http://device/cc",
+        params={"dkey": "abc123&=?/", "light": "toggle"},
+        verify_ssl=False,
+    )
 
 
 async def test_set_light_lock_released_after_error(client):
@@ -151,7 +155,7 @@ def test_light_commands_after_loop_start(commands, expected_state, expected_togg
         await asyncio.sleep(0)
         return snapshot
 
-    async def execute(command, retry):
+    async def execute(command, params, retry):
         nonlocal state
         state = 1 - state
         await asyncio.sleep(0)

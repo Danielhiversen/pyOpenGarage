@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import aiohttp
 import pytest
@@ -71,16 +71,16 @@ async def test_update_state_calls_execute():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "method_name,command",
+    "method_name,params",
     [
-        ("push_button", "cc?dkey=devkey&click=1"),
-        ("push_close_button", "cc?dkey=devkey&close=1"),
-        ("push_open_button", "cc?dkey=devkey&open=1"),
-        ("reboot", "cc?dkey=devkey&reboot=1"),
-        ("ap_mode", "cc?dkey=devkey&apmode=1"),
+        ("push_button", {"dkey": "devkey", "click": 1}),
+        ("push_close_button", {"dkey": "devkey", "close": 1}),
+        ("push_open_button", {"dkey": "devkey", "open": 1}),
+        ("reboot", {"dkey": "devkey", "reboot": 1}),
+        ("ap_mode", {"dkey": "devkey", "apmode": 1}),
     ],
 )
-async def test_command_methods_return_result(method_name, command):
+async def test_command_methods_return_result(method_name, params):
     session = SimpleNamespace()
     client = make_client(session)
     client._execute = AsyncMock(return_value={"result": "ok"})
@@ -89,21 +89,21 @@ async def test_command_methods_return_result(method_name, command):
     result = await method()
 
     assert result == "ok"
-    client._execute.assert_awaited_once_with(command)
+    client._execute.assert_awaited_once_with("cc", params)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "method_name,command",
+    "method_name,params",
     [
-        ("push_button", "cc?dkey=devkey&click=1"),
-        ("push_close_button", "cc?dkey=devkey&close=1"),
-        ("push_open_button", "cc?dkey=devkey&open=1"),
-        ("reboot", "cc?dkey=devkey&reboot=1"),
-        ("ap_mode", "cc?dkey=devkey&apmode=1"),
+        ("push_button", {"dkey": "devkey", "click": 1}),
+        ("push_close_button", {"dkey": "devkey", "close": 1}),
+        ("push_open_button", {"dkey": "devkey", "open": 1}),
+        ("reboot", {"dkey": "devkey", "reboot": 1}),
+        ("ap_mode", {"dkey": "devkey", "apmode": 1}),
     ],
 )
-async def test_command_methods_return_none_on_no_result(method_name, command):
+async def test_command_methods_return_none_on_no_result(method_name, params):
     session = SimpleNamespace()
     client = make_client(session)
     client._execute = AsyncMock(return_value=None)
@@ -112,7 +112,7 @@ async def test_command_methods_return_none_on_no_result(method_name, command):
     result = await method()
 
     assert result is None
-    client._execute.assert_awaited_once_with(command)
+    client._execute.assert_awaited_once_with("cc", params)
 
 
 @pytest.mark.asyncio
@@ -124,7 +124,7 @@ async def test_execute_success_returns_json():
     result = await client._execute("jc")
 
     assert result == {"ok": True}
-    session.get.assert_awaited_once_with("http://device/jc", verify_ssl=False)
+    session.get.assert_awaited_once_with("http://device/jc", params=None, verify_ssl=False)
     assert response.json_calls == [None]
 
 
@@ -205,3 +205,18 @@ async def test_execute_raises_after_timeout_retries_exhausted():
         await client._execute("jc")
 
     assert session.get.await_count == 3
+
+
+@pytest.mark.parametrize("error", [aiohttp.ClientError, asyncio.TimeoutError])
+async def test_execute_preserves_query_parameters_on_retry(error):
+    response = ResponseStub(200, {"ok": True})
+    session = SimpleNamespace(get=AsyncMock(side_effect=[error(), response]))
+    client = make_client(session)
+    params = {"dkey": "abc123&=?/", "open": 1}
+
+    assert await client._execute("cc", params) == {"ok": True}
+
+    assert session.get.await_args_list == [
+        call("http://device/cc", params=params, verify_ssl=False),
+        call("http://device/cc", params=params, verify_ssl=False),
+    ]

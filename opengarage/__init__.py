@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from urllib.parse import urlencode
 
 import aiohttp
 import async_timeout
@@ -55,35 +54,35 @@ class OpenGarage:
 
     async def push_button(self):
         """Push button."""
-        result = await self._execute(f"cc?dkey={self._devkey}&click=1")
+        result = await self._execute("cc", {"dkey": self._devkey, "click": 1})
         if result is None:
             return None
         return result.get("result")
 
     async def push_close_button(self):
         """Push close button.  No-op if already closed."""
-        result = await self._execute(f"cc?dkey={self._devkey}&close=1")
+        result = await self._execute("cc", {"dkey": self._devkey, "close": 1})
         if result is None:
             return None
         return result.get("result")
 
     async def push_open_button(self):
         """Push open button.  No-op if already open."""
-        result = await self._execute(f"cc?dkey={self._devkey}&open=1")
+        result = await self._execute("cc", {"dkey": self._devkey, "open": 1})
         if result is None:
             return None
         return result.get("result")
 
     async def reboot(self):
         """Reboot device."""
-        result = await self._execute(f"cc?dkey={self._devkey}&reboot=1")
+        result = await self._execute("cc", {"dkey": self._devkey, "reboot": 1})
         if result is None:
             return None
         return result.get("result")
 
     async def ap_mode(self):
         """Reset device in AP mode (to reconfigure WiFi settings)."""
-        result = await self._execute(f"cc?dkey={self._devkey}&apmode=1")
+        result = await self._execute("cc", {"dkey": self._devkey, "apmode": 1})
         if result is None:
             return None
         return result.get("result")
@@ -101,9 +100,10 @@ class OpenGarage:
 
     async def _toggle_light(self):
         """Send one toggle without retrying an ambiguous response."""
-        query = urlencode({"dkey": self._devkey, "light": "toggle"})
         # A lost response may follow a successful toggle; retrying would undo it.
-        result = await self._execute(f"cc?{query}", retry=0)
+        result = await self._execute(
+            "cc", {"dkey": self._devkey, "light": "toggle"}, retry=0
+        )
         if result is None:
             return None
         return result.get("result")
@@ -118,12 +118,14 @@ class OpenGarage:
                 return 1
             return await self._toggle_light()
 
-    async def _execute(self, command, retry=2):
+    async def _execute(self, command, params=None, retry=2):
         """Execute command."""
         url = f"{self._devip}/{command}"
         try:
             async with async_timeout.timeout(self._timeout):
-                resp = await self.websession.get(url, verify_ssl=self._verify_ssl)
+                resp = await self.websession.get(
+                    url, params=params, verify_ssl=self._verify_ssl
+                )
             if resp.status != 200:
                 _LOGGER.error(
                     "Error connecting to Open garage, resp code: %s", resp.status
@@ -132,12 +134,12 @@ class OpenGarage:
             result = await resp.json(content_type=None)
         except aiohttp.ClientError as err:
             if retry > 0:
-                return await self._execute(command, retry - 1)
+                return await self._execute(command, params, retry - 1)
             _LOGGER.error("Error connecting to Open garage: %s ", err, exc_info=True)
             raise
         except asyncio.TimeoutError:
             if retry > 0:
-                return await self._execute(command, retry - 1)
+                return await self._execute(command, params, retry - 1)
             _LOGGER.error("Timed out when connecting to Open garage device")
             raise
 
