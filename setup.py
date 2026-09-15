@@ -22,7 +22,7 @@ setup(
             "pytest-cov>=7.1.0"
         ]
     },
-    version="0.2.0",
+    version="0.3.0",
     description="A python3 library to communicate with Open Garage",
     python_requires=">=3.10",
     author="Daniel Hjelseth Høyer",
