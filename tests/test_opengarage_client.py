@@ -14,10 +14,19 @@ class ResponseStub:
         self.status = status
         self._payload = payload
         self.json_calls = []
+        self.released = False
 
     async def json(self, content_type=None):
         self.json_calls.append(content_type)
         return self._payload
+
+    async def release(self):
+        self.released = True
+
+
+class SyncReleaseResponse(ResponseStub):
+    def release(self):
+        self.released = True
 
 
 def make_client(session):
@@ -30,20 +39,44 @@ def test_init_uses_provided_session():
     assert client.websession is session
 
 
-def test_init_creates_session_when_missing(monkeypatch):
-    loop = asyncio.new_event_loop()
+def test_init_does_not_create_session_eagerly():
+    client = OpenGarage("http://device", "devkey")
+    assert client.websession is None
+
+
+@pytest.mark.asyncio
+async def test_ensure_session_creates_session_lazily(monkeypatch):
     session = object()
-    monkeypatch.setattr(asyncio, "get_event_loop", lambda: loop)
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda: session)
-    try:
-        client = OpenGarage("http://device", "devkey")
-        assert client.websession is session
-    finally:
-        loop.close()
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda connector=None: session)
+    client = OpenGarage("http://device", "devkey")
+
+    await client._ensure_session()
+
+    assert client.websession is session
 
 
 def test_device_url_returns_devip():
     client = OpenGarage("http://device", "devkey", websession=SimpleNamespace())
+    assert client.device_url == "http://device"
+
+
+def test_device_url_adds_scheme_for_bare_host():
+    client = OpenGarage("192.168.1.5:80", "devkey", websession=SimpleNamespace())
+    assert client.device_url == "http://192.168.1.5:80"
+
+
+def test_device_url_adds_scheme_for_bare_host_without_port():
+    client = OpenGarage("192.168.1.5", "devkey", websession=SimpleNamespace())
+    assert client.device_url == "http://192.168.1.5"
+
+
+def test_device_url_preserves_https_scheme():
+    client = OpenGarage("https://device", "devkey", websession=SimpleNamespace())
+    assert client.device_url == "https://device"
+
+
+def test_device_url_strips_trailing_slash():
+    client = OpenGarage("http://device/", "devkey", websession=SimpleNamespace())
     assert client.device_url == "http://device"
 
 
@@ -55,6 +88,13 @@ async def test_close_connection_closes_session():
     await client.close_connection()
 
     session.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_connection_noop_when_no_session_created():
+    client = OpenGarage("http://device", "devkey")
+
+    await client.close_connection()  # should not raise AttributeError
 
 
 @pytest.mark.asyncio
@@ -89,7 +129,7 @@ async def test_command_methods_return_result(method_name, command):
     result = await method()
 
     assert result == "ok"
-    client._execute.assert_awaited_once_with(command)
+    client._execute.assert_awaited_once_with(command, wrap_errors=False)
 
 
 @pytest.mark.asyncio
@@ -112,7 +152,7 @@ async def test_command_methods_return_none_on_no_result(method_name, command):
     result = await method()
 
     assert result is None
-    client._execute.assert_awaited_once_with(command)
+    client._execute.assert_awaited_once_with(command, wrap_errors=False)
 
 
 @pytest.mark.asyncio
@@ -124,8 +164,21 @@ async def test_execute_success_returns_json():
     result = await client._execute("jc")
 
     assert result == {"ok": True}
-    session.get.assert_awaited_once_with("http://device/jc", verify_ssl=False)
+    session.get.assert_awaited_once_with("http://device/jc")
     assert response.json_calls == [None]
+    assert response.released is True
+
+
+@pytest.mark.asyncio
+async def test_execute_releases_sync_response():
+    response = SyncReleaseResponse(200, {"ok": True})
+    session = SimpleNamespace(get=AsyncMock(return_value=response))
+    client = make_client(session)
+
+    result = await client._execute("jc")
+
+    assert result == {"ok": True}
+    assert response.released is True
 
 
 @pytest.mark.asyncio
@@ -138,6 +191,7 @@ async def test_execute_non_200_returns_none_and_logs(caplog):
     result = await client._execute("jc")
 
     assert result is None
+    assert response.released is True
     assert any("resp code: 500" in record.message for record in caplog.records)
 
 
