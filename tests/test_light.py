@@ -9,6 +9,8 @@ import aiohttp
 import pytest
 
 from opengarage import OpenGarage
+from opengarage.errors import TransportError, UnsupportedFeatureError
+from opengarage.state import normalize_state
 
 
 @pytest.fixture
@@ -23,12 +25,13 @@ def client():
 )
 async def test_toggle_light(client, response, expected):
     """Pass the key as a query parameter and never retry a toggle."""
+    client.get_state = AsyncMock(return_value=normalize_state({"light": 0}))
     client._execute = AsyncMock(return_value=response)
 
     assert await client.toggle_light() == expected
 
     client._execute.assert_awaited_once_with(
-        "cc", {"dkey": "abc123&=?/", "light": "toggle"}, retry=0
+        "cc?dkey=abc123%26%3D%3F%2F&light=toggle", retry=0, wrap_errors=True
     )
 
 
@@ -37,9 +40,9 @@ async def test_set_light_is_idempotent(client, current, requested):
     """Do not toggle a light that already has the requested state."""
     client._execute = AsyncMock(return_value={"light": current})
 
-    assert await client.set_light(requested) == 1
+    assert await client.set_light(requested) is None
 
-    client._execute.assert_awaited_once_with("jc")
+    client._execute.assert_awaited_once_with("jc", wrap_errors=True)
 
 
 @pytest.mark.parametrize("current,requested", [(0, True), (1, False)])
@@ -55,20 +58,21 @@ async def test_set_light_when_state_differs(client, current, requested, response
 
     assert client._execute.await_count == 2
     client._execute.assert_awaited_with(
-        "cc", {"dkey": "abc123&=?/", "light": "toggle"}, retry=0
+        "cc?dkey=abc123%26%3D%3F%2F&light=toggle", retry=0, wrap_errors=True
     )
 
 
 @pytest.mark.parametrize(
-    "state", [None, {"door": 0}, {"light": None}, {"light": -1}, {"light": "0"}]
+    "state", [None, {"door": 0}, {"light": None}, {"light": "unknown"}]
 )
 async def test_set_light_without_valid_state(client, state):
     """An absent or unknown light state must never trigger a toggle."""
     client._execute = AsyncMock(return_value=state)
 
-    assert await client.set_light(True) is None
+    with pytest.raises(UnsupportedFeatureError):
+        await client.set_light(True)
 
-    client._execute.assert_awaited_once_with("jc")
+    client._execute.assert_awaited_once_with("jc", wrap_errors=True)
 
 
 @pytest.mark.parametrize("initial,requested", [(0, True), (1, False)])
@@ -77,42 +81,41 @@ async def test_concurrent_set_light(client, initial, requested):
     state = initial
 
     async def read_state():
-        snapshot = {"light": state}
+        snapshot = normalize_state({"light": state})
         await asyncio.sleep(0)
         return snapshot
 
-    async def execute(command, params, retry):
+    async def execute(command, retry, wrap_errors):
         nonlocal state
         state = 1 - state
         await asyncio.sleep(0)
         return {"result": 1}
 
-    client.update_state = AsyncMock(side_effect=read_state)
+    client.get_state = AsyncMock(side_effect=read_state)
     client._execute = AsyncMock(side_effect=execute)
 
     results = await asyncio.gather(
         client.set_light(requested), client.set_light(requested)
     )
 
-    assert results == [1, 1]
+    assert results == [1, None]
 
     assert state == int(requested)
-    assert client.update_state.await_count == 2
+    assert client.get_state.await_count == 2
     client._execute.assert_awaited_once()
 
 
 @pytest.mark.parametrize("error", [aiohttp.ClientError, asyncio.TimeoutError])
 async def test_toggle_does_not_retry_network_failure(client, error):
     """An uncertain command outcome must not cause a second toggle."""
+    client.get_state = AsyncMock(return_value=normalize_state({"light": 0}))
     client.websession = SimpleNamespace(get=AsyncMock(side_effect=error))
 
-    with pytest.raises(error):
+    with pytest.raises(TransportError):
         await client.toggle_light()
 
     client.websession.get.assert_awaited_once_with(
-        "http://device/cc",
-        params={"dkey": "abc123&=?/", "light": "toggle"},
-        verify_ssl=False,
+        "http://device/cc?dkey=abc123%26%3D%3F%2F&light=toggle",
     )
 
 
@@ -123,7 +126,7 @@ async def test_set_light_lock_released_after_error(client):
     with pytest.raises(aiohttp.ClientError):
         await client.set_light(True)
 
-    assert await asyncio.wait_for(client.set_light(True), timeout=1) == 1
+    assert await asyncio.wait_for(client.set_light(True), timeout=1) is None
 
 
 @pytest.mark.parametrize(
@@ -151,17 +154,17 @@ def test_light_commands_after_loop_start(commands, expected_state, expected_togg
     state = 0
 
     async def read_state():
-        snapshot = {"light": state}
+        snapshot = normalize_state({"light": state})
         await asyncio.sleep(0)
         return snapshot
 
-    async def execute(command, params, retry):
+    async def execute(command, retry, wrap_errors):
         nonlocal state
         state = 1 - state
         await asyncio.sleep(0)
         return {"result": 1}
 
-    connection.update_state = AsyncMock(side_effect=read_state)
+    connection.get_state = AsyncMock(side_effect=read_state)
     connection._execute = AsyncMock(side_effect=execute)
     actions = {
         "on": partial(connection.set_light, True),
@@ -174,6 +177,8 @@ def test_light_commands_after_loop_start(commands, expected_state, expected_togg
             asyncio.gather(*(actions[command]() for command in commands)), timeout=1
         )
 
-    assert asyncio.run(run_commands()) == [1, 1]
+    results = asyncio.run(run_commands())
+    assert results.count(1) == expected_toggles
+    assert results.count(None) == 2 - expected_toggles
     assert state == expected_state
     assert connection._execute.await_count == expected_toggles

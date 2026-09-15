@@ -18,20 +18,19 @@ jobs:
           - "3.13"
           - "3.14"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: pip_cache
-      - name: Install depencency
+      - name: Install dependency
         run: |
-            pip install aiohttp async_timeout
-            pip install dlint flake8 flake8-bandit flake8-bugbear flake8-deprecated flake8-executable isort pylint pytest pytest-asyncio pytest-cov
+            pip install '.[dev]'
       - name: Flake8 Code Linter
         run: |
             flake8 opengarage/ --max-line-length=120 --extend-ignore=DUO102,DUO130,S303,S311
@@ -43,4 +42,4 @@ jobs:
             pylint opengarage
       - name: Pytest
         run: |
-            pytest -v --cov
+            pytest -v
