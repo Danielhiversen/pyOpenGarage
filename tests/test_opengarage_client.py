@@ -129,7 +129,7 @@ async def test_command_methods_return_result(method_name, command):
     result = await method()
 
     assert result == "ok"
-    client._execute.assert_awaited_once_with(command, wrap_errors=False)
+    client._execute.assert_awaited_once_with(command, retry=2, wrap_errors=False)
 
 
 @pytest.mark.asyncio
@@ -152,7 +152,7 @@ async def test_command_methods_return_none_on_no_result(method_name, command):
     result = await method()
 
     assert result is None
-    client._execute.assert_awaited_once_with(command, wrap_errors=False)
+    client._execute.assert_awaited_once_with(command, retry=2, wrap_errors=False)
 
 
 @pytest.mark.asyncio

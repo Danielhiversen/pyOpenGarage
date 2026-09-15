@@ -35,6 +35,7 @@ class OpenGarage:
         self._devip = self._normalize_devip(devip)
         self._devkey = devkey
         self._verify_ssl = verify_ssl
+        self._light_lock = None
 
     @staticmethod
     def _normalize_devip(devip):
@@ -95,12 +96,19 @@ class OpenGarage:
         """Reset device in AP mode (to reconfigure WiFi settings)."""
         return await self._dispatch_action("apmode")
 
+    def _get_light_lock(self):
+        """Create the shared lock inside the light command's running loop."""
+        if self._light_lock is None:
+            self._light_lock = asyncio.Lock()
+        return self._light_lock
+
     async def toggle_light(self):
         """Toggle light when supported by firmware."""
-        state = await self.get_state()
-        if not state.capabilities.get("light_control"):
-            raise UnsupportedFeatureError("Light control not supported")
-        return await self._dispatch_action("light", wrap_errors=True)
+        async with self._get_light_lock():
+            state = await self.get_state()
+            if not state.capabilities.get("light_control"):
+                raise UnsupportedFeatureError("Light control not supported")
+            return await self._dispatch_action("light", wrap_errors=True, retry=0)
 
     async def toggle_lock(self):
         """Toggle lock when supported by firmware."""
@@ -111,12 +119,13 @@ class OpenGarage:
 
     async def set_light(self, on):
         """Set light to on/off, only toggling if it isn't already in that state."""
-        state = await self.get_state()
-        if not state.capabilities.get("light_control"):
-            raise UnsupportedFeatureError("Light control not supported")
-        if state.light_on == on:
-            return None
-        return await self._dispatch_action("light", wrap_errors=True)
+        async with self._get_light_lock():
+            state = await self.get_state()
+            if not state.capabilities.get("light_control"):
+                raise UnsupportedFeatureError("Light control not supported")
+            if state.light_on == on:
+                return None
+            return await self._dispatch_action("light", wrap_errors=True, retry=0)
 
     async def set_lock(self, engaged):
         """Set lock to engaged/disengaged, only toggling if it isn't already in that state."""
@@ -127,9 +136,9 @@ class OpenGarage:
             return None
         return await self._dispatch_action("lock", wrap_errors=True)
 
-    async def _dispatch_action(self, action, wrap_errors=False):
+    async def _dispatch_action(self, action, wrap_errors=False, retry=2):
         command = CommandDispatcher.build_command(action, self._devkey)
-        result = await self._execute(command, wrap_errors=wrap_errors)
+        result = await self._execute(command, retry=retry, wrap_errors=wrap_errors)
         if result is None:
             return None
         return result.get("result")
